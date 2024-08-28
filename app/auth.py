@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 from dotenv import load_dotenv
 import os
 

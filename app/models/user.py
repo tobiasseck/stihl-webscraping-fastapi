@@ -1,4 +1,4 @@
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel, Field
 from typing import Optional
 
 class User(SQLModel, table=True):
@@ -7,4 +7,4 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     full_name: str
     hashed_password: str
-    disabled: bool = Field(default=False)
+    disabled: bool = False

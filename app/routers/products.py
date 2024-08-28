@@ -1,27 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import Optional, List
-
-from app.models.product import Product, Category
+from typing import List
 from app.models.database import get_session
+from app.models.product import Product, Category
 from app.auth import get_current_active_user
+from app.models.user import User
 
 router = APIRouter()
 
 @router.get("/products", response_model=List[Product])
 async def get_products(
-    *,
-    session: Session = Depends(get_session),
     skip: int = 0,
     limit: int = 100,
-    category: Optional[str] = None,
-    current_user: dict = Depends(get_current_active_user)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
 ):
-    query = select(Product).offset(skip).limit(limit)
-    if category:
-        query = query.join(Category).where(Category.name == category)
-    products = session.exec(query).all()
+    products = session.exec(select(Product).offset(skip).limit(limit)).all()
     return products
+
+@router.get("/categories", response_model=List[Category])
+async def get_categories(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    categories = session.exec(select(Category)).all()
+    return categories
 
 @router.get("/products/{product_id}", response_model=Product)
 async def get_product(
@@ -38,7 +41,7 @@ async def get_product(
 @router.get("/categories", response_model=List[Category])
 async def get_categories(
     session: Session = Depends(get_session),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     categories = session.exec(select(Category)).all()
     return categories
