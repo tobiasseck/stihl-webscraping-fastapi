@@ -1,20 +1,22 @@
 from sqlmodel import Field, Relationship, SQLModel
 from typing import List, Optional
 from datetime import date
+from sqlalchemy import Column, String, Text
 
 class Category(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    link: str
+    name: str = Field(max_length=255, index=True)
+    link: str = Field(max_length=512)
 
     products: List["Product"] = Relationship(back_populates="category")
 
 class Product(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    link: str
-    description: Optional[str] = Field(default=None)
-    sku: str = Field(unique=True, index=True)
+    name: str = Field(max_length=255, index=True)
+    link: str = Field(max_length=512)
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    sku: str = Field(max_length=100, unique=True, index=True)
+    price: Optional[str] = Field(max_length=50, default=None)
     category_id: Optional[int] = Field(default=None, foreign_key="category.id")
 
     category: Optional[Category] = Relationship(back_populates="products")
@@ -23,9 +25,9 @@ class Product(SQLModel, table=True):
 
 class Variant(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str
-    identifier: Optional[str] = Field(default=None)
-    sku: str = Field(unique=True, index=True)
+    name: str = Field(max_length=255)
+    identifier: Optional[str] = Field(default=None, max_length=512)
+    sku: str = Field(max_length=100, unique=True, index=True)
     product_id: Optional[int] = Field(default=None, foreign_key="product.id")
 
     product: Optional[Product] = Relationship(back_populates="variants")
@@ -33,7 +35,7 @@ class Variant(SQLModel, table=True):
 
 class PriceHistory(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    price_sku: str = Field(index=True)
+    price_sku: str = Field(max_length=100, index=True)
     price_date: date = Field(index=True)
     price_value: float
     product_id: Optional[int] = Field(default=None, foreign_key="product.id")

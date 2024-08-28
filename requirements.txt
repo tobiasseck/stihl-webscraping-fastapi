@@ -11,3 +11,5 @@ google-auth
 passlib
 python-jose[cryptography]
 jinja2
+bs4
+tdqm

@@ -49,7 +49,7 @@ class Scraper:
         user_data_dir = os.path.join(os.getcwd(), "chrome_user_data")
         chrome_options.add_argument(f"user-data-dir={user_data_dir}")
 
-        service = Service('path/to/chromedriver')  # Update this path
+        service = Service('E:\Python\API\web-scraping\chromedriver-win64\chromedriver.exe')
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
 
     def extract_categories(self):
@@ -137,14 +137,14 @@ class Scraper:
             product.description = data.get('description', '')
 
             if 'model' in data:
-                for variant in data['model']:
-                    variant_name = variant.get('name', '')
-                    variant_price = variant.get('offers', {}).get('price', 'N/A')
-                    variant_sku = variant.get('sku', '')
-                    product.add_variant(variant_name, variant_price, variant_sku)
+                for variant_data in data['model']:
+                    variant_name = variant_data.get('name', '')
+                    variant_price = variant_data.get('offers', {}).get('price', 'N/A')
+                    variant_sku = variant_data.get('sku', '')
+                    self.add_variant(product, variant_name, variant_price, variant_sku)
 
             if product.variants:
-                product.sku = product.variants[0]['sku']
+                product.sku = product.variants[0].sku
 
         return product
 
@@ -169,8 +169,7 @@ class Scraper:
             price_element = tile.find('span', class_='price-value')
             price = price_element.text.strip() if price_element else "N/A"
 
-            product = Product(name=name, link=link, description="", sku="")
-            product.price = price
+            product = Product(name=name, link=link, description="", sku="", price=price, variants=[])
             product = self.scrape_product_details(product)
             
             self.products.append(product)
@@ -181,6 +180,57 @@ class Scraper:
 
         progress_bar.close()
         return category_products
+
+    def scrape_product_details(self, product):
+        response = requests.get(product.link, headers=self.headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        script = soup.find('script', type='application/ld+json')
+        if script:
+            data = json.loads(script.string)
+            
+            product.description = data.get('description', '')
+
+            if 'model' in data:
+                for variant_data in data['model']:
+                    variant_name = variant_data.get('name', '')
+                    variant_price = variant_data.get('offers', {}).get('price', 'N/A')
+                    variant_sku = variant_data.get('sku', '')
+                    self.add_variant(product, variant_name, variant_price, variant_sku)
+
+            if product.variants:
+                product.sku = product.variants[0].sku
+
+        return product
+
+    def add_variant(self, product, variant_name, variant_price, variant_sku):
+        variant_parts = variant_name.split(', ', 1)
+        variant_name = variant_parts[0]
+        variant_identifier = variant_parts[1] if len(variant_parts) > 1 else ""
+        
+        variant = Variant(
+            name=variant_name,
+            identifier=variant_identifier,
+            sku=variant_sku,
+        )
+        
+        if variant_price != 'N/A':
+            try:
+                price_value = float(variant_price.replace('€', '').replace(',', '.').strip())
+            except ValueError:
+                price_value = None
+        else:
+            price_value = None
+
+        price_history = PriceHistory(
+            price_sku=variant_sku,
+            price_date=date.today(),
+            price_value=price_value,
+        )
+        
+        variant.price_histories = [price_history]
+        product.variants.append(variant)
+
 
     def scrape_all_products(self):
         self.status = "Scraping products"
@@ -208,30 +258,40 @@ class Scraper:
                             link=product.link,
                             description=product.description,
                             sku=product.sku,
+                            price=product.price,
                             category_id=db_category.id
                         )
                         session.add(db_product)
                         session.flush()
+                    else:
+                        db_product.name = product.name
+                        db_product.link = product.link
+                        db_product.description = product.description
+                        db_product.price = product.price
 
                     for variant in product.variants:
-                        db_variant = session.query(Variant).filter(Variant.sku == variant['sku']).first()
+                        db_variant = session.query(Variant).filter(Variant.sku == variant.sku).first()
                         if not db_variant:
                             db_variant = Variant(
-                                name=variant['name'],
-                                identifier=variant.get('identifier', ''),
-                                sku=variant['sku'],
+                                name=variant.name,
+                                identifier=variant.identifier,
+                                sku=variant.sku,
                                 product_id=db_product.id
                             )
                             session.add(db_variant)
                             session.flush()
+                        else:
+                            db_variant.name = variant.name
+                            db_variant.identifier = variant.identifier
 
-                        price_history = PriceHistory(
-                            price_sku=variant['sku'],
-                            price_date=date.today(),
-                            price_value=float(variant['price'].replace('€', '').replace(',', '.').strip()),
-                            variant_id=db_variant.id
-                        )
-                        session.add(price_history)
+                        for price_history in variant.price_histories:
+                            db_price_history = PriceHistory(
+                                price_sku=price_history.price_sku,
+                                price_date=price_history.price_date,
+                                price_value=price_history.price_value,
+                                variant_id=db_variant.id
+                            )
+                            session.add(db_price_history)
 
             session.commit()
 
