@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Scraped Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        h1, h2, h3 { color: #333; }
+        .category { margin-bottom: 20px; }
+        .product { margin-left: 20px; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+        .variant { margin-left: 20px; border-top: 1px solid #eee; padding-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Scraped Data</h1>
+    <div id="data"></div>
+
+    <script>
+        async function fetchData() {
+            const response = await fetch('/products');
+            const data = await response.json();
+            displayData(data);
+        }
+
+        function displayData(data) {
+            const container = document.getElementById('data');
+            const categories = {};
+
+            data.forEach(product => {
+                if (!categories[product.category.name]) {
+                    categories[product.category.name] = [];
+                }
+                categories[product.category.name].push(product);
+            });
+
+            for (const [categoryName, products] of Object.entries(categories)) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'category';
+                categoryDiv.innerHTML = `<h2>${categoryName}</h2>`;
+                
+                products.forEach(product => {
+                    const productDiv = document.createElement('div');
+                    productDiv.className = 'product';
+                    productDiv.innerHTML = `
+                        <h3>${product.name}</h3>
+                        <p>SKU: ${product.sku}</p>
+                        <p>Description: ${product.description}</p>
+                    `;
+                    
+                    product.variants.forEach(variant => {
+                        const variantDiv = document.createElement('div');
+                        variantDiv.className = 'variant';
+                        variantDiv.innerHTML = `
+                            <p>Variant: ${variant.name}</p>
+                            <p>SKU: ${variant.sku}</p>
+                            <p>Price: €${variant.price_histories[0].price_value.toFixed(2)}</p>
+                        `;
+                        productDiv.appendChild(variantDiv);
+                    });
+
+                    categoryDiv.appendChild(productDiv);
+                });
+
+                container.appendChild(categoryDiv);
+            }
+        }
+
+        fetchData();
+    </script>
+</body>
+</html>

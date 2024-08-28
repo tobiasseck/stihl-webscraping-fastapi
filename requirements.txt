@@ -10,3 +10,4 @@ gspread
 google-auth
 passlib
 python-jose[cryptography]
+jinja2
