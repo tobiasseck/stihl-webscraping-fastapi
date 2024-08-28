@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Chrome User Data
+.chrome_user_data
+
 # C extensions
 *.so
 
