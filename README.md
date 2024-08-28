@@ -1,3 +1,47 @@
+# Project Structure and Setup
+
+## Folder Structure
+
+```
+stihl_scraper/
+│
+├── .env                  # Environment variables (sensitive data)
+├── .gitignore            # Git ignore file
+├── requirements.txt      # Python dependencies
+├── README.md             # Project documentation
+│
+├── app/
+│   ├── main.py           # FastAPI application entry point
+│   ├── auth.py           # Authentication module
+│   │
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── database.py   # Database connection and session
+│   │   └── product.py    # SQLAlchemy models
+│   │
+│   ├── controllers/
+│   │   ├── __init__.py
+│   │   └── controller.py # Main controller logic
+│   │
+│   ├── views/
+│   │   ├── __init__.py
+│   │   └── ui.py         # View logic (Excel, JSON export)
+│   │
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── products.py   # Product-related routes
+│   │   └── scraper.py    # Scraper-related routes
+│   │
+│   └── static/
+│       └── index.html    # Frontend dashboard
+│
+└── tests/
+    ├── __init__.py
+    ├── test_auth.py
+    ├── test_controller.py
+    └── test_models.py
+```
+
 ## Setup Instructions
 
 1. Create a virtual environment:

@@ -1,16 +1,17 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import SQLModel
 from dotenv import load_dotenv
 import os
 
+from app.models.database import engine
 from app.routers import products, scraper
-from app.models.database import engine, Base
 
 load_dotenv()
 
 app = FastAPI()
 
-Base.metadata.create_all(bind=engine)
+SQLModel.metadata.create_all(engine)
 
 app.include_router(products.router)
 app.include_router(scraper.router)
