@@ -30,9 +30,9 @@ class Controller:
                 db_product = session.query(Product).filter(Product.sku == product.sku).first()
                 if db_product:
                     price_history = PriceHistory(
-                        sku=product.sku,
-                        date=today,
-                        price=product.price,
+                        price_sku=product.sku,
+                        price_date=today,
+                        price_value=product.price,
                         product_id=db_product.id
                     )
                     session.add(price_history)
@@ -41,9 +41,9 @@ class Controller:
                     db_variant = session.query(Variant).filter(Variant.sku == variant['sku']).first()
                     if db_variant:
                         price_history = PriceHistory(
-                            sku=variant['sku'],
-                            date=today,
-                            price=variant['price'],
+                            price_sku=variant['sku'],
+                            price_date=today,
+                            price_value=variant['price'],
                             variant_id=db_variant.id
                         )
                         session.add(price_history)

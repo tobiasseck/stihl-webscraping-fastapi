@@ -2,6 +2,7 @@ fastapi
 uvicorn
 sqlmodel
 pymysql
+mysqlclient
 pydantic
 python-dotenv
 openpyxl
