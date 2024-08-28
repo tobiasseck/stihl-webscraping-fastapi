@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+pydantic
+python-dotenv
+openpyxl
+gspread
+google-auth
+passlib
+python-jose[cryptography]
