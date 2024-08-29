@@ -1,7 +1,7 @@
-from fastapi import Depends, FastAPI, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from sqlmodel import Session
 from datetime import timedelta
 import os
@@ -13,15 +13,26 @@ from app.routers import products, scraper
 
 app = FastAPI()
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
-
-# Set up Jinja2 templates
-templates = Jinja2Templates(directory="app/static")
 
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    with open("app/static/index.html", "r") as file:
+        return file.read()
+
+@app.get("/login", response_class=HTMLResponse)
+async def read_login():
+    with open("app/static/login.html", "r") as file:
+        return file.read()
+
+@app.get("/browse", response_class=HTMLResponse)
+async def read_browse():
+    with open("app/static/browse.html", "r") as file:
+        return file.read()
 
 @app.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
@@ -38,17 +49,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/")
-async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
 @app.get("/users/me/", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
+# Include routers
 app.include_router(products.router)
 app.include_router(scraper.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

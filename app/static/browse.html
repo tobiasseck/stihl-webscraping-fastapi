@@ -3,92 +3,241 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Browse Data - Stihl Scraper</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>Browse Products - Stihl Scraper</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/nouislider/distribute/nouislider.min.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <style>
+        .product-card { height: 100%; }
+        .product-image { height: 200px; object-fit: cover; }
+        .filter-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        .filter-section h4 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .filter-section h5 {
+            margin-bottom: 15px;
+            color: #555;
+        }
+        #categoryCheckboxes {
+            max-height: 300px;
+            max-width: 100%;
+            overflow-y: auto;
+        }
+        #categoryCheckboxes .form-check {
+            margin-bottom: 8px;
+        }
+        #priceRange {
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        .noUi-connect {
+            background: #007bff;
+        }
+        #searchInput {
+            width: 100%;
+        }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <nav class="bg-indigo-600 p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <a href="/" class="text-white text-2xl font-bold">Stihl Scraper</a>
-            <div>
-                <a href="/" class="text-white mr-4">Home</a>
-                <a href="/browse" class="text-white mr-4">Browse Data</a>
-                <button id="logoutBtn" class="text-white">Logout</button>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Stihl Scraper</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/browse">Browse Data</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="logoutLink">Logout</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto mt-8 p-4">
-        <h1 class="text-3xl font-bold mb-6">Browse Scraped Data</h1>
-        <div id="data" class="space-y-6"></div>
+    <div class="container mt-4">
+        <h1>Browse Products</h1>
+        
+        <div class="row mt-4">
+            <div class="col-md-3 filter-section">
+                <h4>Filters</h4>
+                <div class="mb-4">
+                    <h5>Categories</h5>
+                    <div id="categoryCheckboxes" class="d-flex flex-column">
+                        <!-- Categories will be populated here -->
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h5>Price Range</h5>
+                    <div id="priceRange"></div>
+                    <div class="d-flex justify-content-between mt-2">
+                        <span id="priceMin"></span>
+                        <span id="priceMax"></span>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <h5>Search</h5>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search products...">
+                </div>
+            </div>
+            <div class="col-md-9">
+                <div id="productList" class="row row-cols-1 row-cols-md-3 g-4">
+                    <!-- Products will be populated here -->
+                </div>
+            </div>
+        </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nouislider/distribute/nouislider.min.js"></script>
     <script>
-        // Check for authentication
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/login';
-        }
+        let allProducts = [];
+        let categories = [];
+        let priceRange = [0, 5000];
 
-        async function fetchData() {
-            const response = await fetch('/products', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            const data = await response.json();
-            displayData(data);
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('token')) {
+                window.location.href = '/login';
+            } else {
+                fetchProducts();
+            }
+        });
 
-        function displayData(data) {
-            const container = document.getElementById('data');
-            const categories = {};
+        document.getElementById('logoutLink').addEventListener('click', logout);
 
-            data.forEach(product => {
-                if (!categories[product.category.name]) {
-                    categories[product.category.name] = [];
-                }
-                categories[product.category.name].push(product);
-            });
-
-            for (const [categoryName, products] of Object.entries(categories)) {
-                const categoryDiv = document.createElement('div');
-                categoryDiv.className = 'bg-white shadow rounded-lg p-6';
-                categoryDiv.innerHTML = `<h2 class="text-2xl font-bold mb-4">${categoryName}</h2>`;
-                
-                products.forEach(product => {
-                    const productDiv = document.createElement('div');
-                    productDiv.className = 'mb-4 p-4 border border-gray-200 rounded';
-                    productDiv.innerHTML = `
-                        <h3 class="text-xl font-semibold">${product.name}</h3>
-                        <p class="text-gray-600">SKU: ${product.sku}</p>
-                        <p class="text-gray-600">Description: ${product.description}</p>
-                    `;
-                    
-                    product.variants.forEach(variant => {
-                        const variantDiv = document.createElement('div');
-                        variantDiv.className = 'mt-2 pl-4 border-l-2 border-gray-200';
-                        variantDiv.innerHTML = `
-                            <p>Variant: ${variant.name}</p>
-                            <p>SKU: ${variant.sku}</p>
-                            <p>Price: €${variant.price_histories[0].price_value.toFixed(2)}</p>
-                        `;
-                        productDiv.appendChild(variantDiv);
-                    });
-
-                    categoryDiv.appendChild(productDiv);
+        async function fetchProducts() {
+            try {
+                const response = await fetch('/products', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
                 });
-
-                container.appendChild(categoryDiv);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                allProducts = await response.json();
+                renderProducts(allProducts);
+                setupFilters();
+            } catch (error) {
+                console.error('Error fetching products:', error);
             }
         }
 
-        fetchData();
+        function renderProducts(products) {
+            const productList = document.getElementById('productList');
+            productList.innerHTML = '';
+            products.forEach(product => {
+                const productCard = document.createElement('div');
+                productCard.className = 'col';
+                
+                // Get the image URL from the first variant, if available
+                const firstVariantImage = product.variants && product.variants.length > 0 ? 
+                    product.variants[0].image_url : null;
+                
+                productCard.innerHTML = `
+                    <div class="card product-card">
+                        <img src="${firstVariantImage || '/static/placeholder.jpg'}" class="card-img-top product-image" alt="${product.name}">
+                        <div class="card-body">
+                            <h5 class="card-title">${product.name}</h5>
+                            <p class="card-text">${product.description ? product.description.substring(0, 100) + '...' : 'No description available'}</p>
+                            <p class="card-text">Price: ${product.price || 'N/A'}</p>
+                            <p class="card-text">SKU: ${product.sku || 'N/A'}</p>
+                            <p class="card-text">Category: ${product.category ? product.category.name : 'N/A'}</p>
+                            <p class="card-text">Variants: ${product.variants ? product.variants.length : 0}</p>
+                        </div>
+                    </div>
+                `;
+                productList.appendChild(productCard);
+            });
+        }
 
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        function setupFilters() {
+            // Set up category filter
+            const categoryCheckboxes = document.getElementById('categoryCheckboxes');
+            categories = [...new Set(allProducts.map(p => p.category ? p.category.name : 'Uncategorized'))];
+            categoryCheckboxes.innerHTML = categories.map(category => `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${category}" id="category-${category}">
+                    <label class="form-check-label" for="category-${category}">
+                        ${category}
+                    </label>
+                </div>
+            `).join('');
+
+            // Set up price range filter
+            const priceRangeElement = document.getElementById('priceRange');
+            const prices = allProducts.flatMap(p => p.variants.map(v => parseFloat(v.price))).filter(p => !isNaN(p));
+            const minPrice = Math.floor(Math.min(...prices));
+            const maxPrice = Math.ceil(Math.max(...prices));
+
+            noUiSlider.create(priceRangeElement, {
+                start: [minPrice, maxPrice],
+                connect: true,
+                range: {
+                    'min': minPrice,
+                    'max': maxPrice
+                },
+                format: {
+                    to: value => Math.round(value),
+                    from: value => Math.round(value)
+                }
+            });
+
+            priceRangeElement.noUiSlider.on('update', (values, handle) => {
+                document.getElementById('priceMin').textContent = `€${values[0]}`;
+                document.getElementById('priceMax').textContent = `€${values[1]}`;
+                priceRange = values.map(Number);
+                applyFilters();
+            });
+
+            // Set up search filter
+            document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+            // Set up category filter
+            document.querySelectorAll('#categoryCheckboxes input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', applyFilters);
+            });
+        }
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const selectedCategories = Array.from(document.querySelectorAll('#categoryCheckboxes input[type="checkbox"]:checked')).map(cb => cb.value);
+
+            const filteredProducts = allProducts.filter(product => {
+                const matchesSearch = product.name.toLowerCase().includes(searchTerm) ||
+                                    (product.description && product.description.toLowerCase().includes(searchTerm)) ||
+                                    (product.variants && product.variants.some(v => v.name.toLowerCase().includes(searchTerm)));
+                const matchesCategory = selectedCategories.length === 0 || (product.category && selectedCategories.includes(product.category.name));
+                const matchesPrice = product.variants.some(variant => {
+                    const variantPrice = parseFloat(variant.price);
+                    return !isNaN(variantPrice) && variantPrice >= priceRange[0] && variantPrice <= priceRange[1];
+                });
+                return matchesSearch && matchesCategory && matchesPrice;
+            });
+
+            renderProducts(filteredProducts);
+        }
+
+        function logout() {
             localStorage.removeItem('token');
             window.location.href = '/login';
-        });
+        }
     </script>
 </body>
 </html>

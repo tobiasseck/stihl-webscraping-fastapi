@@ -2,46 +2,38 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List
 from app.models.database import get_session
-from app.models.product import Product, Category
+from app.models.product import Product, Category, Variant
 from app.auth import get_current_active_user
-from app.models.user import User
 
 router = APIRouter()
 
-@router.get("/products", response_model=List[Product])
+@router.get("/products", response_model=List[dict])
 async def get_products(
-    skip: int = 0,
-    limit: int = 100,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
-):
-    products = session.exec(select(Product).offset(skip).limit(limit)).all()
-    return products
-
-@router.get("/categories", response_model=List[Category])
-async def get_categories(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
-):
-    categories = session.exec(select(Category)).all()
-    return categories
-
-@router.get("/products/{product_id}", response_model=Product)
-async def get_product(
-    *,
-    product_id: int,
     session: Session = Depends(get_session),
     current_user: dict = Depends(get_current_active_user)
 ):
-    product = session.get(Product, product_id)
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    products = session.exec(select(Product)).all()
+    result = []
+    for product in products:
+        product_dict = product.dict()
+        product_dict['category'] = product.category.dict() if product.category else None
+        product_dict['variants'] = [
+            {
+                "id": variant.id,
+                "name": variant.name,
+                "sku": variant.sku,
+                "image_url": variant.image_url,
+                # Include other relevant variant fields
+            }
+            for variant in product.variants
+        ]
+        result.append(product_dict)
+    return result
 
 @router.get("/categories", response_model=List[Category])
 async def get_categories(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_active_user)
+    current_user: dict = Depends(get_current_active_user)
 ):
     categories = session.exec(select(Category)).all()
     return categories

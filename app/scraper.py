@@ -14,12 +14,21 @@ import csv
 import json
 from tqdm import tqdm
 from sqlmodel import Session
+from sqlalchemy.exc import IntegrityError
 from app.models.database import engine
 from app.models.product import Category, Product, Variant, PriceHistory
 from datetime import date
 
 class Scraper:
-    def __init__(self):
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Scraper, cls).__new__(cls)
+            cls._instance.initialize()
+        return cls._instance
+
+    def initialize(self):
         self.progress = 0
         self.status = "Idle"
         self.total_categories = 0
@@ -126,82 +135,61 @@ class Scraper:
 
         self.driver.quit()
 
-    def scrape_product_details(self, product):
-        response = requests.get(product.link, headers=self.headers)
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        script = soup.find('script', type='application/ld+json')
-        if script:
-            data = json.loads(script.string)
-            
-            product.description = data.get('description', '')
-
-            if 'model' in data:
-                for variant_data in data['model']:
-                    variant_name = variant_data.get('name', '')
-                    variant_price = variant_data.get('offers', {}).get('price', 'N/A')
-                    variant_sku = variant_data.get('sku', '')
-                    self.add_variant(product, variant_name, variant_price, variant_sku)
-
-            if product.variants:
-                product.sku = product.variants[0].sku
-
-        return product
-
     def scrape_products(self, url, category_name):
         response = requests.get(url, headers=self.headers)
         soup = BeautifulSoup(response.content, 'html.parser')
         product_tiles = soup.find_all('a', class_='m_category-overview-tiles__item')
 
-        category_products = []
-        progress_bar = tqdm(total=len(product_tiles), desc=f"Scraping {category_name}", unit="product")
-
-        for tile in product_tiles:
-            name_element = tile.find('span', class_='tile_product-standard__title-inner')
-            if name_element:
-                name = name_element.text.strip()
-            else:
-                progress_bar.update(1)
-                continue
-
+        products = []
+        for tile in tqdm(product_tiles, desc=f"Scraping {category_name}"):
+            name = tile.find('span', class_='tile_product-standard__title-inner').text.strip()
             link = self.base_url + tile['href']
-            
             price_element = tile.find('span', class_='price-value')
             price = price_element.text.strip() if price_element else "N/A"
-
-            product = Product(name=name, link=link, description="", sku="", price=price, variants=[])
-            product = self.scrape_product_details(product)
             
-            self.products.append(product)
-            category_products.append(product)
+            # Extract product image
+            img_element = tile.find('img', class_='tile_product-standard__image')
+            image_url = self.base_url + img_element['srcset'].split()[0] if img_element else None
 
-            time.sleep(1)
-            progress_bar.update(1)
+            product = self.scrape_product_details(name, link, price, image_url)
+            products.append(product)
 
-        progress_bar.close()
-        return category_products
+        return products
 
-    def scrape_product_details(self, product):
-        response = requests.get(product.link, headers=self.headers)
+    def scrape_product_details(self, name, link, price, image_url):
+        response = requests.get(link, headers=self.headers)
         soup = BeautifulSoup(response.content, 'html.parser')
 
         script = soup.find('script', type='application/ld+json')
         if script:
             data = json.loads(script.string)
-            
-            product.description = data.get('description', '')
+            description = data.get('description', '')
+            sku = data.get('sku', '')
 
+            variants = []
             if 'model' in data:
                 for variant_data in data['model']:
                     variant_name = variant_data.get('name', '')
                     variant_price = variant_data.get('offers', {}).get('price', 'N/A')
                     variant_sku = variant_data.get('sku', '')
-                    self.add_variant(product, variant_name, variant_price, variant_sku)
+                    variant_image = variant_data.get('image', '')
+                    variants.append({
+                        'name': variant_name,
+                        'price': variant_price,
+                        'sku': variant_sku,
+                        'image': variant_image
+                    })
 
-            if product.variants:
-                product.sku = product.variants[0].sku
-
-        return product
+            return {
+                'name': name,
+                'link': link,
+                'price': price,
+                'description': description,
+                'sku': sku,
+                'image_url': image_url,  # Make sure this is not None
+                'variants': variants
+            }
+        return None
 
     def add_variant(self, product, variant_name, variant_price, variant_sku):
         variant_parts = variant_name.split(', ', 1)
@@ -239,69 +227,88 @@ class Scraper:
             print(f"\nScraping category: {category['name']}")
             category['products'] = self.scrape_products(category['link'], category['name'])
             time.sleep(2)
-            self.progress = 50 + ((i + 1) / self.total_products * 50)  # Products are the other 50%
+            self.progress = 50 + ((i + 1) / self.total_products * 50)
 
     def save_to_db(self):
-        with Session(engine) as session:
-            for category in self.categories:
-                db_category = session.query(Category).filter(Category.link == category['link']).first()
-                if not db_category:
-                    db_category = Category(name=category['name'], link=category['link'])
-                    session.add(db_category)
-                    session.flush()
-
-                for product in category['products']:
-                    db_product = session.query(Product).filter(Product.sku == product.sku).first()
-                    if not db_product:
-                        db_product = Product(
-                            name=product.name,
-                            link=product.link,
-                            description=product.description,
-                            sku=product.sku,
-                            price=product.price,
-                            category_id=db_category.id
-                        )
-                        session.add(db_product)
+        try:
+            with Session(engine) as session:
+                for category in self.categories:
+                    db_category = session.query(Category).filter(Category.link == category['link']).first()
+                    if not db_category:
+                        db_category = Category(name=category['name'], link=category['link'])
+                        session.add(db_category)
                         session.flush()
-                    else:
-                        db_product.name = product.name
-                        db_product.link = product.link
-                        db_product.description = product.description
-                        db_product.price = product.price
 
-                    for variant in product.variants:
-                        db_variant = session.query(Variant).filter(Variant.sku == variant.sku).first()
-                        if not db_variant:
-                            db_variant = Variant(
-                                name=variant.name,
-                                identifier=variant.identifier,
-                                sku=variant.sku,
-                                product_id=db_product.id
+                    for product in category['products']:
+                        db_product = session.query(Product).filter(Product.sku == product['sku']).first()
+                        if not db_product:
+                            db_product = Product(
+                                name=product['name'],
+                                link=product['link'],
+                                description=product.get('description', ''),
+                                sku=product['sku'],
+                                price=product.get('price', ''),
+                                image_url=product.get('image_url'),
+                                category_id=db_category.id
                             )
-                            session.add(db_variant)
-                            session.flush()
+                            session.add(db_product)
                         else:
-                            db_variant.name = variant.name
-                            db_variant.identifier = variant.identifier
+                            # Update existing product
+                            db_product.name = product['name']
+                            db_product.link = product['link']
+                            db_product.description = product.get('description', '')
+                            db_product.price = product.get('price', '')
+                            db_product.image_url = product.get('image_url')
+                        session.flush()
 
-                        for price_history in variant.price_histories:
-                            db_price_history = PriceHistory(
-                                price_sku=price_history.price_sku,
-                                price_date=price_history.price_date,
-                                price_value=price_history.price_value,
-                                variant_id=db_variant.id
-                            )
-                            session.add(db_price_history)
+                        for variant in product.get('variants', []):
+                            try:
+                                db_variant = session.query(Variant).filter(Variant.sku == variant['sku']).first()
+                                if not db_variant:
+                                    db_variant = Variant(
+                                        name=variant.get('name', ''),
+                                        sku=variant['sku'],
+                                        image_url=variant.get('image'),
+                                        product_id=db_product.id
+                                    )
+                                    session.add(db_variant)
+                                else:
+                                    # Update existing variant
+                                    db_variant.name = variant.get('name', '')
+                                    db_variant.image_url = variant.get('image')
+                                session.flush()
 
-            session.commit()
+                                if 'price' in variant:
+                                    price_value = float(variant['price'].replace('€', '').replace(',', '.').strip())
+                                    price_history = PriceHistory(
+                                        price_sku=variant['sku'],
+                                        price_date=date.today(),
+                                        price_value=price_value,
+                                        variant_id=db_variant.id
+                                    )
+                                    session.add(price_history)
+                            except IntegrityError:
+                                session.rollback()
+                                print(f"Duplicate entry for variant SKU: {variant['sku']}. Skipping...")
+                                continue
+
+                session.commit()
+
+        except Exception as e:
+            self.status = f"Failed during database save: {str(e)}"
+            raise
 
     async def start_scrape(self):
         self.progress = 0
         self.status = "Starting"
-        self.scrape_categories()
-        self.scrape_all_products()
-        self.save_to_db()
-        self.status = "Completed"
-        self.progress = 100
+        try:
+            self.scrape_categories()
+            self.scrape_all_products()
+            self.save_to_db()
+            self.status = "Completed"
+            self.progress = 100
+        except Exception as e:
+            self.status = f"Failed: {str(e)}"
+            print(f"Scraping failed: {e}")
 
 scraper = Scraper()

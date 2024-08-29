@@ -17,9 +17,10 @@ class Product(SQLModel, table=True):
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
     sku: str = Field(max_length=100, unique=True, index=True)
     price: Optional[str] = Field(max_length=50, default=None)
+    image_url: Optional[str] = Field(max_length=512, default=None)
     category_id: Optional[int] = Field(default=None, foreign_key="category.id")
 
-    category: Optional[Category] = Relationship(back_populates="products")
+    category: Optional["Category"] = Relationship(back_populates="products")
     variants: List["Variant"] = Relationship(back_populates="product")
     price_histories: List["PriceHistory"] = Relationship(back_populates="product")
 
@@ -28,6 +29,7 @@ class Variant(SQLModel, table=True):
     name: str = Field(max_length=255)
     identifier: Optional[str] = Field(default=None, max_length=512)
     sku: str = Field(max_length=100, unique=True, index=True)
+    image_url: Optional[str] = Field(max_length=512, default=None)
     product_id: Optional[int] = Field(default=None, foreign_key="product.id")
 
     product: Optional[Product] = Relationship(back_populates="variants")
