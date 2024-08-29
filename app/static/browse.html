@@ -3,22 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Browse Scraped Data</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        h1, h2, h3 { color: #333; }
-        .category { margin-bottom: 20px; }
-        .product { margin-left: 20px; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        .variant { margin-left: 20px; border-top: 1px solid #eee; padding-top: 5px; }
-    </style>
+    <title>Browse Data - Stihl Scraper</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>Scraped Data</h1>
-    <div id="data"></div>
+<body class="bg-gray-100">
+    <nav class="bg-indigo-600 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="/" class="text-white text-2xl font-bold">Stihl Scraper</a>
+            <div>
+                <a href="/" class="text-white mr-4">Home</a>
+                <a href="/browse" class="text-white mr-4">Browse Data</a>
+                <button id="logoutBtn" class="text-white">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4">
+        <h1 class="text-3xl font-bold mb-6">Browse Scraped Data</h1>
+        <div id="data" class="space-y-6"></div>
+    </div>
 
     <script>
+        // Check for authentication
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+
         async function fetchData() {
-            const response = await fetch('/products');
+            const response = await fetch('/products', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             const data = await response.json();
             displayData(data);
         }
@@ -36,21 +53,21 @@
 
             for (const [categoryName, products] of Object.entries(categories)) {
                 const categoryDiv = document.createElement('div');
-                categoryDiv.className = 'category';
-                categoryDiv.innerHTML = `<h2>${categoryName}</h2>`;
+                categoryDiv.className = 'bg-white shadow rounded-lg p-6';
+                categoryDiv.innerHTML = `<h2 class="text-2xl font-bold mb-4">${categoryName}</h2>`;
                 
                 products.forEach(product => {
                     const productDiv = document.createElement('div');
-                    productDiv.className = 'product';
+                    productDiv.className = 'mb-4 p-4 border border-gray-200 rounded';
                     productDiv.innerHTML = `
-                        <h3>${product.name}</h3>
-                        <p>SKU: ${product.sku}</p>
-                        <p>Description: ${product.description}</p>
+                        <h3 class="text-xl font-semibold">${product.name}</h3>
+                        <p class="text-gray-600">SKU: ${product.sku}</p>
+                        <p class="text-gray-600">Description: ${product.description}</p>
                     `;
                     
                     product.variants.forEach(variant => {
                         const variantDiv = document.createElement('div');
-                        variantDiv.className = 'variant';
+                        variantDiv.className = 'mt-2 pl-4 border-l-2 border-gray-200';
                         variantDiv.innerHTML = `
                             <p>Variant: ${variant.name}</p>
                             <p>SKU: ${variant.sku}</p>
@@ -67,6 +84,11 @@
         }
 
         fetchData();
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        });
     </script>
 </body>
 </html>
